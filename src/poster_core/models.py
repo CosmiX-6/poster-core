@@ -80,6 +80,35 @@ class TimelineEvent(BaseModel):
     what: str
 
 
+class MoneyFlowStep(BaseModel):
+    """One node in a money trail: who/what, and what arrived here from the
+    previous step (the first step in a trail has no incoming amount)."""
+
+    actor: str
+    amount: str | None = None
+    detail: str | None = None
+
+    @field_validator("amount", "detail", mode="before")
+    @classmethod
+    def _stringify(cls, v):
+        return None if v is None else str(v)
+
+
+class ComparisonPair(BaseModel):
+    """A two-way comparison: before/after, this vs. that."""
+
+    label_a: str
+    value_a: str
+    label_b: str
+    value_b: str
+    title: str | None = None
+
+    @field_validator("value_a", "value_b", mode="before")
+    @classmethod
+    def _stringify(cls, v):
+        return str(v)
+
+
 class StoryBeat(BaseModel):
     """One step of the narrative, usable directly as a carousel slide."""
 
@@ -94,14 +123,18 @@ class ContentBrief(BaseModel):
     summary: str
     headline: str
     subheadline: str | None = None
+    hook: str | None = None
     category: StoryCategory = StoryCategory.GENERAL
     entities: list[Entity] = Field(default_factory=list)
     key_facts: list[str] = Field(default_factory=list)
     timeline: list[TimelineEvent] = Field(default_factory=list)
     story_beats: list[StoryBeat] = Field(default_factory=list)
+    money_trail: list[MoneyFlowStep] = Field(default_factory=list)
+    comparison: ComparisonPair | None = None
     notable_quote: Quote | None = None
     why_it_matters: str | None = None
     future_impact: str | None = None
+    closing_line: str | None = None
     emotions: list[str] = Field(default_factory=list)
     tone: str = "neutral"
     visual_concepts: list[str] = Field(default_factory=list)
@@ -123,13 +156,30 @@ class ContentBrief(BaseModel):
             return Quote(text=v) if v.strip() else None
         return v
 
+    @field_validator("money_trail", mode="before")
+    @classmethod
+    def _coerce_money_trail(cls, v):
+        return v or []
+
+    @field_validator("comparison", mode="before")
+    @classmethod
+    def _coerce_comparison(cls, v):
+        if isinstance(v, dict) and not (v.get("label_a") and v.get("value_a")):
+            return None
+        return v
+
 
 class SlideKind(str, Enum):
-    HERO = "hero"
+    HOOK = "hook"  # cold-open curiosity slide (carousel only)
+    HERO = "hero"  # full-bleed image + headline (standalone cover asset)
     TEXT = "text"
+    EVIDENCE = "evidence"
+    MONEY_FLOW = "money_flow"
     TIMELINE = "timeline"
     STATS = "stats"
+    COMPARISON = "comparison"
     QUOTE = "quote"
+    CONCLUSION = "conclusion"
 
 
 class DeckSlide(BaseModel):
@@ -141,7 +191,10 @@ class DeckSlide(BaseModel):
     body: str | None = None
     facts: list[str] = Field(default_factory=list)
     timeline: list[TimelineEvent] = Field(default_factory=list)
+    money_trail: list[MoneyFlowStep] = Field(default_factory=list)
+    comparison: ComparisonPair | None = None
     quote: Quote | None = None
+    transition: str | None = None  # swipe-bait line cueing the next slide
 
 
 class AssetPlan(BaseModel):

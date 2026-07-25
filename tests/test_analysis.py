@@ -37,12 +37,25 @@ def test_plan_assets_carousel_narrative_deck(fake_llm):
     brief = understand(article, fake_llm)
     plans = plan_assets(brief, [AssetType.CAROUSEL], Platform.INSTAGRAM_POST)
     slides = plans[0].slides
-    assert slides[0].kind is SlideKind.HERO
+    assert slides[0].kind is SlideKind.HOOK
+    assert slides[0].heading == brief.hook  # cold open, not the headline
     kinds = [s.kind for s in slides]
+    assert SlideKind.EVIDENCE in kinds
+    assert SlideKind.MONEY_FLOW in kinds
     assert SlideKind.TIMELINE in kinds
     assert SlideKind.STATS in kinds
+    assert SlideKind.COMPARISON in kinds
     assert SlideKind.QUOTE in kinds
-    assert len(slides) <= 8
+    assert SlideKind.CONCLUSION in kinds
+    assert len(slides) <= 10
+
+    # every slide but the last carries a swipe-bait transition
+    assert all(s.transition for s in slides[:-1])
+    assert slides[-1].transition is None
+
+    # no two consecutive slides share a layout
+    for a, b in zip(kinds, kinds[1:]):
+        assert a != b
 
 
 def test_deck_without_beats_uses_summary_slide(fake_llm):

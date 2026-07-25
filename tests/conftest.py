@@ -21,6 +21,7 @@ class FakeLLM:
             "The booster landed successfully after delivering 20 satellites.",
             "headline": "Acme's First Reusable Rocket Sticks the Landing",
             "subheadline": "20 satellites delivered before a flawless booster return",
+            "hook": "One booster. Twenty satellites. Zero margin for error.",
             "entities": [{"name": "Acme Corp", "kind": "organisation"}],
             "key_facts": [
                 "20 satellites deployed in one launch",
@@ -45,6 +46,17 @@ class FakeLLM:
             "why_it_matters": "Reusable boosters slash the cost of reaching "
             "orbit, opening space to far more operators.",
             "future_impact": "Acme plans a second flight within six weeks.",
+            "closing_line": "Acme says a second launch is already being scheduled.",
+            "money_trail": [
+                {"actor": "Orbital Ventures (investor)", "amount": None, "detail": None},
+                {"actor": "Acme Holdings", "amount": "$120,000,000", "detail": "Series C, 2023"},
+                {"actor": "Acme Corp R&D", "amount": "$45,000,000", "detail": "Booster program"},
+            ],
+            "comparison": {
+                "title": "COST PER LAUNCH",
+                "label_a": "BEFORE REUSE", "value_a": "$60M",
+                "label_b": "AFTER REUSE", "value_b": "$24M",
+            },
             "emotions": ["excitement"],
             "tone": "celebratory",
             "visual_concepts": ["Rocket ascending over ocean at dawn"],

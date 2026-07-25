@@ -23,6 +23,13 @@ Analyse the article above and return JSON with exactly these keys:
 - headline: an editorial headline written for a social visual (do NOT copy the
   article title), clear and engaging, 8-12 words max
 - subheadline: one supporting line, max 16 words (or null)
+- hook: a short, curiosity-first opening line for slide one of a swipeable
+  carousel — NOT the headline, and never a plain restatement of it. It should
+  make someone want to keep swiping without giving away the ending. Lead with
+  a striking number, tension, or an open question, grounded only in facts
+  actually in the article. Examples of the STYLE (write your own, don't copy):
+  "£500,000. One company. One investigation." / "The paper trail nobody
+  expected." / "It started with a single wire transfer." 6-14 words.
 - category: exactly one of "breaking", "investigation", "politics",
   "technology", "ai", "finance", "business", "sports", "science", "health",
   "disaster", "product_launch", "general" — pick what best drives the visual
@@ -33,11 +40,28 @@ Analyse the article above and return JSON with exactly these keys:
   (or null)
 - future_impact: one sentence on what happens next, only if the article
   supports it (or null)
+- closing_line: one memorable closing line for the FINAL slide of the
+  carousel — a forward-looking statement, an open question, or a striking
+  restatement of the stakes. Must be grounded in the article, never
+  speculative beyond what it supports (e.g. "The investigation is still
+  ongoing." or "The next hearing is expected within weeks."). Null if the
+  article gives nothing to close on.
 - entities: list of {"name": str, "kind": "person"|"organisation"|"place"|"product"|"other"}
 - key_facts: 3-6 short, self-contained facts or stats worth showing on a graphic
 - timeline: chronological list of {"when": str, "what": str} (empty if not applicable)
 - story_beats: 3-6 {"heading": str, "body": str} steps that explain the story in
   sequence, each heading max 7 words, each body max 30 words
+- money_trail: ONLY if the article describes money moving between specific
+  people/organisations (donations, transfers, funding, payments) — a
+  chronological list of 2-4 {"actor": str, "amount": str|null, "detail":
+  str|null} steps, where each step's "amount" is the sum that arrived at
+  that actor from the previous step (the first step's amount is null, since
+  nothing arrives there — it's the origin). Empty list if no clear money
+  trail exists; do not force one.
+- comparison: ONLY if the article supports a clear two-way comparison
+  (before/after, this year vs last, X vs Y) — {"title": str|null, "label_a":
+  str, "value_a": str, "label_b": str, "value_b": str}. Null if nothing
+  compares cleanly.
 - emotions: 1-3 dominant emotions the story evokes
 - tone: one of "urgent", "celebratory", "sombre", "analytical", "neutral", "inspiring"
 - visual_concepts: 2-3 distinct ideas for a hero image, described concretely

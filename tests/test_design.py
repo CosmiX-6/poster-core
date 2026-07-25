@@ -42,9 +42,13 @@ def test_deck_has_no_filler_for_thin_stories():
     brief = minimal_brief()
     slides = build_deck(brief)
     kinds = [s.kind for s in slides]
-    # Nothing to build a timeline/stats/quote from: just hero + what happened.
-    assert kinds == [SlideKind.HERO, SlideKind.TEXT]
+    # Nothing to build a timeline/stats/quote/money-trail from: just the
+    # cold open and what happened.
+    assert kinds == [SlideKind.HOOK, SlideKind.TEXT]
     assert slides[1].kicker == "WHAT HAPPENED"
+    assert slides[0].heading == brief.headline  # falls back when no hook given
+    assert slides[0].transition is not None
+    assert slides[1].transition is None  # last slide never baits a swipe
 
 
 def test_deck_includes_only_supported_sections():
@@ -56,3 +60,26 @@ def test_deck_includes_only_supported_sections():
     assert SlideKind.STATS in kinds
     assert SlideKind.QUOTE in kinds
     assert SlideKind.TIMELINE not in kinds  # no timeline in the brief
+    assert SlideKind.MONEY_FLOW not in kinds  # no money trail in the brief
+    assert SlideKind.COMPARISON not in kinds  # no comparison in the brief
+
+
+def test_deck_never_repeats_consecutive_layouts():
+    # Two story beats plus why-it-matters: three text-driven sections in a
+    # row is exactly the case that used to render as three identical slides.
+    brief = minimal_brief(
+        story_beats=[
+            {"heading": "First beat", "body": "Body one."},
+            {"heading": "Second beat", "body": "Body two."},
+        ],
+        why_it_matters="This matters because of reasons.",
+    )
+    kinds = [s.kind for s in build_deck(brief)]
+    for a, b in zip(kinds, kinds[1:]):
+        assert a != b
+
+
+def test_money_trail_requires_at_least_two_steps():
+    brief = minimal_brief(money_trail=[{"actor": "Solo actor"}])
+    kinds = [s.kind for s in build_deck(brief)]
+    assert SlideKind.MONEY_FLOW not in kinds

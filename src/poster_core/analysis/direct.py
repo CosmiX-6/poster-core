@@ -2,9 +2,11 @@
 
 Planning is deterministic — the LLM already did the editorial work in the
 brief — which keeps this step free, fast and unit-testable. Carousels are
-composed as a narrative deck (hero, story, timeline, numbers, quote,
-why-it-matters, what's-next) and only include slides the story actually
-supports; no filler.
+composed as a documentary-style deck: a cold-open hook, then chapters that
+each introduce one new piece of information, ending on a deliberate close.
+Only sections the story actually supports are included — no filler — and
+consecutive slides are guaranteed to never share the same layout, so the
+swipe never feels repetitive.
 """
 
 from __future__ import annotations
@@ -18,11 +20,31 @@ from ..models import (
     DeckSlide,
     Platform,
     SlideKind,
+    StoryBeat,
 )
 
 _NUMBERY = re.compile(r"\d")
 
-MAX_DECK_SLIDES = 8
+# Instagram/Threads carousels cap at 10 images; our documentary structure
+# (hook + up to 2 beats + why-it-matters + money trail + timeline + stats +
+# comparison + quote + conclusion) tops out at exactly 10, so this is a
+# defensive ceiling rather than something that normally truncates content.
+MAX_DECK_SLIDES = 10
+
+# Generic, non-factual transition lines shown at the bottom of a slide to
+# bait the next swipe. They never assert anything about the story itself,
+# so they carry no risk of contradicting the article.
+_TRANSITIONS = [
+    "But that wasn't where the story began.",
+    "Then investigators found something else.",
+    "Here's where it gets complicated.",
+    "That number alone doesn't tell the story.",
+    "But the timeline raises new questions.",
+    "Here's where the money actually went.",
+    "Now comes the key question.",
+    "That isn't the biggest number.",
+    "But one detail changes everything.",
+]
 
 
 def choose_asset_types(brief: ContentBrief) -> list[AssetType]:
@@ -39,27 +61,44 @@ def numeric_facts(brief: ContentBrief) -> list[str]:
     return [f for f in brief.key_facts if _NUMBERY.search(f)]
 
 
+def _append_text_like(
+    slides: list[DeckSlide], kicker: str, heading: str | None, body: str | None
+) -> None:
+    """Append a text-driven slide, alternating between the plain TEXT layout
+    and the framed EVIDENCE layout so two prose slides never sit back to
+    back with an identical look."""
+    kind = SlideKind.EVIDENCE if slides and slides[-1].kind is SlideKind.TEXT else SlideKind.TEXT
+    slides.append(DeckSlide(kind=kind, kicker=kicker, heading=heading, body=body))
+
+
 def build_deck(brief: ContentBrief) -> list[DeckSlide]:
-    """Compose a carousel narrative from whatever the story supports."""
-    slides = [
-        DeckSlide(
-            kind=SlideKind.HERO, heading=brief.headline, body=brief.subheadline
-        )
+    """Compose a documentary-style carousel narrative from whatever the
+    story supports: a cold open, one new idea per slide, and a deliberate
+    close — never a data dump, never filler."""
+    slides: list[DeckSlide] = [
+        DeckSlide(kind=SlideKind.HOOK, heading=brief.hook or brief.headline)
     ]
-    if brief.story_beats:
-        slides += [
-            DeckSlide(kind=SlideKind.TEXT, heading=b.heading, body=b.body)
-            for b in brief.story_beats[:4]
-        ]
-    else:
+
+    beats = brief.story_beats or [StoryBeat(heading=brief.key_event, body=brief.summary)]
+    first = beats[0]
+    _append_text_like(slides, "WHAT HAPPENED", first.heading, first.body or brief.summary)
+
+    if len(beats) > 1:
+        second = beats[1]
+        _append_text_like(slides, "THE DETAIL", second.heading, second.body)
+
+    if brief.why_it_matters:
+        _append_text_like(slides, "WHY IT MATTERS", None, brief.why_it_matters)
+
+    if len(brief.money_trail) >= 2:
         slides.append(
             DeckSlide(
-                kind=SlideKind.TEXT,
-                kicker="WHAT HAPPENED",
-                heading=brief.key_event,
-                body=brief.summary,
+                kind=SlideKind.MONEY_FLOW,
+                kicker="FOLLOW THE MONEY",
+                money_trail=brief.money_trail[:4],
             )
         )
+
     if len(brief.timeline) >= 3:
         slides.append(
             DeckSlide(
@@ -68,26 +107,40 @@ def build_deck(brief: ContentBrief) -> list[DeckSlide]:
                 timeline=brief.timeline[:5],
             )
         )
+
     numbers = numeric_facts(brief)
     if len(numbers) >= 2:
         slides.append(
             DeckSlide(kind=SlideKind.STATS, kicker="KEY NUMBERS", facts=numbers[:4])
         )
+
+    if brief.comparison:
+        slides.append(
+            DeckSlide(
+                kind=SlideKind.COMPARISON,
+                kicker=brief.comparison.title or "BEFORE / AFTER",
+                comparison=brief.comparison,
+            )
+        )
+
     if brief.notable_quote:
         slides.append(DeckSlide(kind=SlideKind.QUOTE, quote=brief.notable_quote))
-    if brief.why_it_matters:
+
+    closing = brief.closing_line or brief.future_impact
+    if closing:
         slides.append(
-            DeckSlide(
-                kind=SlideKind.TEXT, kicker="WHY IT MATTERS", body=brief.why_it_matters
-            )
+            DeckSlide(kind=SlideKind.CONCLUSION, kicker="WHAT HAPPENS NEXT", body=closing)
         )
-    if brief.future_impact:
-        slides.append(
-            DeckSlide(
-                kind=SlideKind.TEXT, kicker="WHAT'S NEXT", body=brief.future_impact
-            )
-        )
-    return slides[:MAX_DECK_SLIDES]
+
+    slides = slides[:MAX_DECK_SLIDES]
+    _assign_transitions(slides)
+    return slides
+
+
+def _assign_transitions(slides: list[DeckSlide]) -> None:
+    """Give every slide but the last a swipe-bait line for the next one."""
+    for i, slide in enumerate(slides[:-1]):
+        slide.transition = _TRANSITIONS[i % len(_TRANSITIONS)]
 
 
 def plan_asset(

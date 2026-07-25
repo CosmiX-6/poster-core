@@ -38,8 +38,9 @@ def test_full_run_produces_expected_assets(tmp_path, fake_llm, fake_generator, f
     assert cover.credit == "Photo: Test / Unsplash"
 
     carousel = next(a for a in assets if a.asset_type is AssetType.CAROUSEL)
-    # hero + 3 beats + timeline + stats + quote + why-it-matters (capped at 8)
-    assert len(carousel.paths) == 8
+    # hook + what-happened + detail + why-it-matters + money-flow + timeline
+    # + stats + comparison + quote + conclusion (the fixture supports all 10)
+    assert len(carousel.paths) == 10
 
 
 def test_generation_fallback_when_stock_misses(tmp_path, fake_llm, fake_generator, fake_stock):
@@ -64,7 +65,7 @@ def test_carousel_renders_without_images(tmp_path, fake_llm, fake_stock):
     config = PipelineConfig(output_dir=str(tmp_path), image_provider="none")
     pipe = Pipeline(config, llm=fake_llm, stock=fake_stock)
     assets = pipe.run(ARTICLE_TEXT, asset_types=[AssetType.CAROUSEL])
-    assert len(assets[0].paths) == 8  # full deck, hero goes typographic
+    assert len(assets[0].paths) == 10  # full deck, hook goes typographic
     assert assets[0].image_origin is ImageOrigin.NONE
 
 

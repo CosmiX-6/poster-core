@@ -10,7 +10,7 @@ import re
 
 from PIL import Image, ImageDraw, ImageFilter
 
-from ..models import BrandKit, TimelineEvent
+from ..models import BrandKit, ComparisonPair, MoneyFlowStep, TimelineEvent
 from .icons import draw_icon
 from .layout import fit_text, load_font
 from .theme import Theme
@@ -88,6 +88,32 @@ def page_counter(
     text = f"{index:02d} — {total:02d}"
     tw = draw.textlength(text, font=font)
     draw.text((canvas.width - margin - tw, margin), text, font=font, fill=theme.muted)
+
+
+def progress_bar(canvas: Image.Image, index: int, total: int, theme: Theme) -> None:
+    """Thin track across the very top edge, filled up to the current slide —
+    a documentary-style "how much of this story is left" cue."""
+    w, h = canvas.size
+    thickness = max(3, h // 300)
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle((0, 0, w, thickness), fill=theme.border)
+    if total > 0:
+        filled = round(w * index / total)
+        draw.rectangle((0, 0, filled, thickness), fill=theme.accent)
+
+
+def transition_hook(
+    canvas: Image.Image, text: str, theme: Theme, brand: BrandKit, margin: int,
+) -> None:
+    """Swipe-bait line near the bottom of a slide, cueing the next one."""
+    draw = ImageDraw.Draw(canvas)
+    px = max(18, canvas.height // 46)
+    max_w = canvas.width - 2 * margin - round(px * 1.6)
+    font, lines = fit_text(draw, text, brand, px, max_w, max_lines=1)
+    y = canvas.height - margin - round(font.size * 2.7)
+    draw.text((margin, y), lines[0], font=font, fill=theme.accent)
+    tw = draw.textlength(lines[0], font=font)
+    draw.text((margin + tw + round(font.size * 0.6), y), "→", font=font, fill=theme.accent)
 
 
 def footer(
@@ -211,3 +237,141 @@ def timeline_block(
         for line in lines:
             draw.text((text_x, wy), line, font=what_font, fill=theme.text)
             wy += round(what_font.size * 1.4)
+
+
+def evidence_frame(
+    canvas: Image.Image, rect: tuple[int, int, int, int], theme: Theme,
+) -> None:
+    """A case-file card: sharp corners, bracket ticks like a pinned exhibit
+    — visually distinct from the rounded, left-accented prose card."""
+    x0, y0, x1, y1 = rect
+    g = grid(canvas.size)
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle(rect, fill=theme.surface, outline=theme.border, width=1)
+    tick = g * 3
+    for cx, cy, dx, dy in (
+        (x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1),
+    ):
+        draw.line((cx, cy, cx + dx * tick, cy), fill=theme.accent, width=3)
+        draw.line((cx, cy, cx, cy + dy * tick), fill=theme.accent, width=3)
+
+
+def money_flow_block(
+    canvas: Image.Image, x: int, y: int, w: int, h: int,
+    steps: list[MoneyFlowStep], theme: Theme, brand: BrandKit,
+) -> None:
+    """A vertical money trail: boxed actors linked by arrows labelled with
+    the amount that moved between them."""
+    draw = ImageDraw.Draw(canvas)
+    g = grid(canvas.size)
+    n = len(steps)
+    if not n:
+        return
+    node_h = min(round(h * 0.24), (h - g * 8 * (n - 1)) // max(n, 1))
+    node_h = max(node_h, round(canvas.height * 0.09))
+    gap = g * 8 if n > 1 else 0
+
+    name_font = load_font(brand, max(20, canvas.height // 40))
+    detail_font = load_font(brand, max(16, canvas.height // 58), bold=False)
+    amount_font = load_font(brand, max(20, canvas.height // 38))
+
+    cy = y
+    for i, step in enumerate(steps):
+        rect = (x, cy, x + w, cy + node_h)
+        draw.rounded_rectangle(rect, radius=16, fill=theme.surface,
+                               outline=theme.border, width=1)
+        draw.rectangle((x, cy, x + max(4, g // 2), cy + node_h), fill=theme.accent)
+        tx = x + g * 4
+        inner_w = w - g * 5
+        name_font_fit, lines = fit_text(draw, step.actor, brand, name_font.size,
+                                        inner_w, max_lines=2)
+        block_h = len(lines) * round(name_font_fit.size * 1.2)
+        detail_h = round(detail_font.size * 1.3) if step.detail else 0
+        ty = cy + (node_h - block_h - detail_h) // 2
+        for line in lines:
+            draw.text((tx, ty), line, font=name_font_fit, fill=theme.text)
+            ty += round(name_font_fit.size * 1.2)
+        if step.detail:
+            draw.text((tx, ty), step.detail, font=detail_font, fill=theme.muted)
+
+        cy += node_h
+        if i < n - 1:
+            ax = x + w // 2
+            draw.line((ax, cy + g, ax, cy + gap - g), fill=theme.accent,
+                      width=max(3, g // 3))
+            arrow_w = g * 2
+            tip_y = cy + gap - g
+            draw.polygon(
+                [(ax - arrow_w // 2, tip_y - arrow_w), (ax + arrow_w // 2, tip_y - arrow_w),
+                 (ax, tip_y)],
+                fill=theme.accent,
+            )
+            next_amount = steps[i + 1].amount
+            if next_amount:
+                amt_font, amt_lines = fit_text(
+                    draw, next_amount, brand, amount_font.size,
+                    w - (ax - x) - g * 3, max_lines=1,
+                )
+                draw.text((ax + g * 2, cy + gap // 2 - amt_font.size // 2),
+                          amt_lines[0], font=amt_font, fill=theme.accent)
+            cy += gap
+
+
+def comparison_block(
+    canvas: Image.Image, x: int, y: int, w: int,
+    comparison: ComparisonPair, theme: Theme, brand: BrandKit,
+) -> None:
+    """Before/after: two cards split by a VS badge, values colour-coded.
+
+    Card height is sized to content rather than stretched to fill whatever
+    space the caller has available, and both values share one font size
+    (the larger shrunk to match) so the comparison reads as one scale.
+    """
+    g = grid(canvas.size)
+    draw = ImageDraw.Draw(canvas)
+    col_gap = g * 4
+    col_w = (w - col_gap) // 2
+    mid = x + w // 2
+
+    label_font = load_font(brand, max(16, canvas.height // 52), bold=False)
+    value_px = round(canvas.height * 0.1)
+    inner_w = col_w - g * 4
+
+    font_a, lines_a = fit_text(draw, comparison.value_a, brand, value_px,
+                               inner_w, max_lines=2)
+    font_b, lines_b = fit_text(draw, comparison.value_b, brand, value_px,
+                               inner_w, max_lines=2)
+    shared_size = min(font_a.size, font_b.size)
+    if font_a.size != shared_size:
+        font_a, lines_a = fit_text(draw, comparison.value_a, brand, shared_size,
+                                   inner_w, max_lines=2, min_scale=1.0)
+    if font_b.size != shared_size:
+        font_b, lines_b = fit_text(draw, comparison.value_b, brand, shared_size,
+                                   inner_w, max_lines=2, min_scale=1.0)
+
+    pad_top = g * 3
+    card_h = pad_top + round(label_font.size * 1.8) + \
+        max(len(lines_a), len(lines_b)) * round(shared_size * 1.15) + g * 3
+
+    columns = (
+        (x, comparison.label_a, lines_a, font_a, theme.muted),
+        (mid + col_gap // 2, comparison.label_b, lines_b, font_b, theme.accent),
+    )
+    for cx0, label, lines, font, color in columns:
+        draw.rounded_rectangle((cx0, y, cx0 + col_w, y + card_h), radius=20,
+                               fill=theme.surface, outline=theme.border, width=1)
+        draw.text((cx0 + g * 2, y + g * 3), label.upper(), font=label_font,
+                  fill=theme.muted)
+        vy = y + pad_top + round(label_font.size * 1.8)
+        for line in lines:
+            draw.text((cx0 + g * 2, vy), line, font=font, fill=color)
+            vy += round(shared_size * 1.15)
+
+    r = g * 3
+    cy = y + card_h // 2
+    draw.ellipse((mid - r, cy - r, mid + r, cy + r), fill=theme.background,
+                 outline=theme.accent, width=2)
+    vs_font = load_font(brand, max(16, round(r * 0.9)))
+    tw = draw.textlength("VS", font=vs_font)
+    draw.text((mid - tw / 2, cy - vs_font.size / 1.7), "VS", font=vs_font,
+              fill=theme.accent)
