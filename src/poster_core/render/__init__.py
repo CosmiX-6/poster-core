@@ -2,6 +2,7 @@
 
 from .layout import (
     cover_crop,
+    fit_text,
     load_font,
     render_cover,
     render_infographic,
@@ -14,6 +15,7 @@ __all__ = [
     "render_text_slide",
     "render_infographic",
     "cover_crop",
+    "fit_text",
     "load_font",
     "wrap_text",
 ]
