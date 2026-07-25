@@ -16,6 +16,7 @@ from .models import (
     Article,
     AssetPlan,
     AssetType,
+    BrandKit,
     ContentBrief,
     GeneratedAsset,
     ImageOrigin,
@@ -58,14 +59,21 @@ class Pipeline:
         asset_types: list[AssetType] | None = None,
         platform: Platform = Platform.INSTAGRAM_POST,
         output_dir: str | Path | None = None,
+        size: tuple[int, int] | None = None,
+        brand: BrandKit | None = None,
     ) -> list[GeneratedAsset]:
         """Produce publication-ready assets for one piece of content.
 
         When `asset_types` is None the creative-direction heuristics choose
-        the most effective format(s) for the story.
+        the most effective format(s) for the story. `size` overrides the
+        platform's preset dimensions, and `brand` overrides the configured
+        brand kit (channel name, footer, colours) for this run only.
         """
         article, brief = self.analyze(source)
         plans = plan_assets(brief, asset_types, platform)
+        if size is not None:
+            for plan in plans:
+                plan.custom_size = size
         out = Path(output_dir or self.config.output_dir) / _slug(brief.headline)
         out.mkdir(parents=True, exist_ok=True)
 
@@ -74,7 +82,11 @@ class Pipeline:
             stock=self._stock,
             generator=self.generator,
         )
-        return [self._render_plan(plan, article, sourcer, out) for plan in plans]
+        active_brand = brand or self.config.brand
+        return [
+            self._render_plan(plan, article, sourcer, out, active_brand)
+            for plan in plans
+        ]
 
     # -- internals ----------------------------------------------------------
 
@@ -84,8 +96,9 @@ class Pipeline:
         article: Article,
         sourcer: ImageSourcer,
         out: Path,
+        brand: BrandKit,
     ) -> GeneratedAsset:
-        brand, size = self.config.brand, plan.size
+        size = plan.size
         image: SourcedImage | None = None
         if plan.asset_type in (AssetType.COVER, AssetType.THUMBNAIL, AssetType.CAROUSEL):
             try:

@@ -78,6 +78,26 @@ def test_platform_sizes_respected(tmp_path, fake_llm, fake_generator, fake_stock
         assert img.size == (1280, 720)
 
 
+def test_custom_size_overrides_platform_preset(tmp_path, fake_llm, fake_generator, fake_stock):
+    pipe = make_pipeline(tmp_path, fake_llm, fake_generator, fake_stock)
+    assets = pipe.run(
+        ARTICLE_TEXT, asset_types=[AssetType.COVER], size=(800, 800)
+    )
+    with Image.open(assets[0].paths[0]) as img:
+        assert img.size == (800, 800)
+
+
+def test_per_run_brand_override(tmp_path, fake_llm, fake_generator, fake_stock):
+    from poster_core.models import BrandKit
+
+    pipe = make_pipeline(tmp_path, fake_llm, fake_generator, fake_stock)
+    custom = BrandKit(name="My Channel", footer="mychannel.tv", accent_color="#00AA55")
+    assets = pipe.run(ARTICLE_TEXT, asset_types=[AssetType.INFOGRAPHIC], brand=custom)
+    assert Path(assets[0].paths[0]).exists()
+    # Config brand untouched — override was for this run only.
+    assert pipe.config.brand.footer is None
+
+
 def test_sourcer_prefers_article_image(monkeypatch, fake_stock):
     from poster_core.models import ArticleImage, AssetPlan, SourcedImage
     from conftest import solid_png

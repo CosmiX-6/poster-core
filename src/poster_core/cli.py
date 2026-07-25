@@ -39,7 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-stock", action="store_true", help="Skip stock photo search"
     )
     parser.add_argument("--accent", default=None, help="Brand accent colour, e.g. #E4572E")
+    parser.add_argument("--brand-name", default=None, help="Channel/brand name shown on assets")
     parser.add_argument("--footer", default=None, help="Footer/brand line on assets")
+    parser.add_argument(
+        "--size",
+        default=None,
+        metavar="WxH",
+        help="Custom output size, e.g. 1080x1080 (overrides the platform preset)",
+    )
     return parser
 
 
@@ -63,8 +70,20 @@ def main(argv: list[str] | None = None) -> int:
     brand = BrandKit()
     if args.accent:
         brand.accent_color = args.accent
+    if args.brand_name:
+        brand.name = args.brand_name
     if args.footer:
         brand.footer = args.footer
+
+    size: tuple[int, int] | None = None
+    if args.size:
+        try:
+            w, h = args.size.lower().split("x")
+            size = (int(w), int(h))
+        except ValueError:
+            print(f"error: --size must look like 1080x1080, got {args.size!r}",
+                  file=sys.stderr)
+            return 2
 
     config = PipelineConfig(
         text_provider=args.text_provider,
@@ -77,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         assets = Pipeline(config).run(
-            source, asset_types=types, platform=Platform(args.platform)
+            source, asset_types=types, platform=Platform(args.platform), size=size
         )
     except PosterError as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -96,10 +96,12 @@ class AssetPlan(BaseModel):
     image_search_query: str | None = None
     image_generation_prompt: str | None = None
     rationale: str | None = None
+    custom_size: tuple[int, int] | None = None
 
     @property
     def size(self) -> tuple[int, int]:
-        return PLATFORM_SIZES[self.platform]
+        """Output dimensions: an explicit custom size wins over the platform preset."""
+        return self.custom_size or PLATFORM_SIZES[self.platform]
 
 
 class ImageOrigin(str, Enum):
