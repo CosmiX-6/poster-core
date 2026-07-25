@@ -24,7 +24,12 @@ def test_load_empty_raises():
         load("   ")
 
 
-def test_article_from_html_extracts_title_text_and_og_image():
+def test_article_from_html_extracts_title_text_and_og_image(monkeypatch):
+    # Force the bs4 fallback path so the test behaves the same whether or
+    # not trafilatura is installed.
+    import poster_core.ingest.url as url_mod
+
+    monkeypatch.setattr(url_mod, "_extract_with_trafilatura", lambda html: None)
     html = """
     <html><head>
       <title>Fallback</title>
