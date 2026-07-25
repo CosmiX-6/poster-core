@@ -15,9 +15,13 @@ from .models import (
     AssetType,
     BrandKit,
     ContentBrief,
+    DeckSlide,
     GeneratedAsset,
     ImageOrigin,
     Platform,
+    Quote,
+    SlideKind,
+    StoryCategory,
 )
 from .pipeline import Pipeline
 

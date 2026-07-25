@@ -20,8 +20,19 @@ _INSTRUCTIONS = """\
 Analyse the article above and return JSON with exactly these keys:
 - key_event: one sentence, the single most newsworthy thing that happened
 - summary: 2-3 sentence neutral summary
-- headline: punchy, accurate headline for a social visual, max 9 words
+- headline: an editorial headline written for a social visual (do NOT copy the
+  article title), clear and engaging, 8-12 words max
 - subheadline: one supporting line, max 16 words (or null)
+- category: exactly one of "breaking", "investigation", "politics",
+  "technology", "ai", "finance", "business", "sports", "science", "health",
+  "disaster", "product_launch", "general" — pick what best drives the visual
+  treatment of this story
+- notable_quote: {"text": str, "attribution": str} — the single most striking
+  short quote actually present in the article, or null if none stands out
+- why_it_matters: 1-2 sentences on why this story matters to the reader
+  (or null)
+- future_impact: one sentence on what happens next, only if the article
+  supports it (or null)
 - entities: list of {"name": str, "kind": "person"|"organisation"|"place"|"product"|"other"}
 - key_facts: 3-6 short, self-contained facts or stats worth showing on a graphic
 - timeline: chronological list of {"when": str, "what": str} (empty if not applicable)

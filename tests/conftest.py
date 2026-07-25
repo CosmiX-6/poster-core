@@ -37,6 +37,14 @@ class FakeLLM:
                 {"heading": "The payload", "body": "20 satellites reached orbit."},
                 {"heading": "The landing", "body": "The booster returned intact."},
             ],
+            "category": "science",
+            "notable_quote": {
+                "text": "This changes the economics of space entirely",
+                "attribution": "Dana Reeve, Acme chief engineer",
+            },
+            "why_it_matters": "Reusable boosters slash the cost of reaching "
+            "orbit, opening space to far more operators.",
+            "future_impact": "Acme plans a second flight within six weeks.",
             "emotions": ["excitement"],
             "tone": "celebratory",
             "visual_concepts": ["Rocket ascending over ocean at dawn"],

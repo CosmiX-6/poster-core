@@ -23,7 +23,7 @@ from .models import (
     Platform,
     SourcedImage,
 )
-from .render import render_cover, render_infographic, render_text_slide
+from .render import render_cover, render_deck, render_infographic
 
 
 class Pipeline:
@@ -71,9 +71,12 @@ class Pipeline:
         """
         article, brief = self.analyze(source)
         plans = plan_assets(brief, asset_types, platform)
-        if size is not None:
-            for plan in plans:
+        reading_minutes = max(1, round(len(article.text.split()) / 220))
+        for plan in plans:
+            if size is not None:
                 plan.custom_size = size
+            plan.source_name = article.source_name
+            plan.reading_minutes = reading_minutes
         out = Path(output_dir or self.config.output_dir) / _slug(brief.headline)
         out.mkdir(parents=True, exist_ok=True)
 
@@ -104,9 +107,7 @@ class Pipeline:
             try:
                 image = sourcer.source(plan, article, size)
             except ImageSourcingError:
-                if plan.asset_type is not AssetType.CAROUSEL:
-                    raise
-                image = None  # carousels can be fully typographic
+                image = None  # heroes fall back to a typographic treatment
 
         paths: list[str] = []
         if plan.asset_type in (AssetType.COVER, AssetType.THUMBNAIL):
@@ -116,15 +117,8 @@ class Pipeline:
             )
             paths.append(_save(img, out / f"{plan.asset_type.value}.png"))
         elif plan.asset_type is AssetType.CAROUSEL:
-            total = len(plan.slides) + (1 if image else 0)
-            if image:
-                img = render_cover(plan, image, brand, size)
-                paths.append(_save(img, out / "carousel_01.png"))
-            for i, slide in enumerate(plan.slides, start=len(paths) + 1):
-                img = render_text_slide(
-                    slide.heading, slide.body, i, total, brand, size
-                )
-                paths.append(_save(img, out / f"carousel_{i:02d}.png"))
+            for i, page in enumerate(render_deck(plan, image, brand), start=1):
+                paths.append(_save(page, out / f"carousel_{i:02d}.png"))
         elif plan.asset_type is AssetType.INFOGRAPHIC:
             img = render_infographic(plan, brand, size)
             paths.append(_save(img, out / "infographic.png"))

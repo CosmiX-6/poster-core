@@ -4,7 +4,6 @@ import pytest
 from PIL import Image
 
 from poster_core import Pipeline, PipelineConfig
-from poster_core.errors import ImageSourcingError
 from poster_core.images.sourcing import ImageSourcer
 from poster_core.models import (
     Article,
@@ -39,7 +38,8 @@ def test_full_run_produces_expected_assets(tmp_path, fake_llm, fake_generator, f
     assert cover.credit == "Photo: Test / Unsplash"
 
     carousel = next(a for a in assets if a.asset_type is AssetType.CAROUSEL)
-    assert len(carousel.paths) == 4  # image slide + 3 beats
+    # hero + 3 beats + timeline + stats + quote + why-it-matters (capped at 8)
+    assert len(carousel.paths) == 8
 
 
 def test_generation_fallback_when_stock_misses(tmp_path, fake_llm, fake_generator, fake_stock):
@@ -50,12 +50,13 @@ def test_generation_fallback_when_stock_misses(tmp_path, fake_llm, fake_generato
     assert fake_generator.prompts  # generation prompt was used
 
 
-def test_cover_fails_without_any_image_source(tmp_path, fake_llm, fake_stock):
+def test_cover_falls_back_to_typographic_without_images(tmp_path, fake_llm, fake_stock):
     fake_stock.hit = False
     config = PipelineConfig(output_dir=str(tmp_path), image_provider="none")
     pipe = Pipeline(config, llm=fake_llm, stock=fake_stock)
-    with pytest.raises(ImageSourcingError):
-        pipe.run(ARTICLE_TEXT, asset_types=[AssetType.COVER])
+    assets = pipe.run(ARTICLE_TEXT, asset_types=[AssetType.COVER])
+    assert assets[0].image_origin is ImageOrigin.NONE
+    assert Path(assets[0].paths[0]).exists()
 
 
 def test_carousel_renders_without_images(tmp_path, fake_llm, fake_stock):
@@ -63,7 +64,7 @@ def test_carousel_renders_without_images(tmp_path, fake_llm, fake_stock):
     config = PipelineConfig(output_dir=str(tmp_path), image_provider="none")
     pipe = Pipeline(config, llm=fake_llm, stock=fake_stock)
     assets = pipe.run(ARTICLE_TEXT, asset_types=[AssetType.CAROUSEL])
-    assert len(assets[0].paths) == 3  # typographic slides only
+    assert len(assets[0].paths) == 8  # full deck, hero goes typographic
     assert assets[0].image_origin is ImageOrigin.NONE
 
 

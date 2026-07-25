@@ -1,18 +1,28 @@
 """Creative direction: turn a ContentBrief into concrete asset plans.
 
 Planning is deterministic — the LLM already did the editorial work in the
-brief — which keeps this step free, fast and unit-testable. Asset type
-selection follows simple editorial heuristics when the caller doesn't
-specify one.
+brief — which keeps this step free, fast and unit-testable. Carousels are
+composed as a narrative deck (hero, story, timeline, numbers, quote,
+why-it-matters, what's-next) and only include slides the story actually
+supports; no filler.
 """
 
 from __future__ import annotations
 
 import re
 
-from ..models import AssetPlan, AssetType, ContentBrief, Platform, StoryBeat
+from ..models import (
+    AssetPlan,
+    AssetType,
+    ContentBrief,
+    DeckSlide,
+    Platform,
+    SlideKind,
+)
 
 _NUMBERY = re.compile(r"\d")
+
+MAX_DECK_SLIDES = 8
 
 
 def choose_asset_types(brief: ContentBrief) -> list[AssetType]:
@@ -20,10 +30,64 @@ def choose_asset_types(brief: ContentBrief) -> list[AssetType]:
     types = [AssetType.COVER]
     if len(brief.story_beats) >= 3 or len(brief.timeline) >= 3:
         types.append(AssetType.CAROUSEL)
-    numeric_facts = [f for f in brief.key_facts if _NUMBERY.search(f)]
-    if len(numeric_facts) >= 3:
+    if len(numeric_facts(brief)) >= 3:
         types.append(AssetType.INFOGRAPHIC)
     return types
+
+
+def numeric_facts(brief: ContentBrief) -> list[str]:
+    return [f for f in brief.key_facts if _NUMBERY.search(f)]
+
+
+def build_deck(brief: ContentBrief) -> list[DeckSlide]:
+    """Compose a carousel narrative from whatever the story supports."""
+    slides = [
+        DeckSlide(
+            kind=SlideKind.HERO, heading=brief.headline, body=brief.subheadline
+        )
+    ]
+    if brief.story_beats:
+        slides += [
+            DeckSlide(kind=SlideKind.TEXT, heading=b.heading, body=b.body)
+            for b in brief.story_beats[:4]
+        ]
+    else:
+        slides.append(
+            DeckSlide(
+                kind=SlideKind.TEXT,
+                kicker="WHAT HAPPENED",
+                heading=brief.key_event,
+                body=brief.summary,
+            )
+        )
+    if len(brief.timeline) >= 3:
+        slides.append(
+            DeckSlide(
+                kind=SlideKind.TIMELINE,
+                kicker="HOW IT UNFOLDED",
+                timeline=brief.timeline[:5],
+            )
+        )
+    numbers = numeric_facts(brief)
+    if len(numbers) >= 2:
+        slides.append(
+            DeckSlide(kind=SlideKind.STATS, kicker="KEY NUMBERS", facts=numbers[:4])
+        )
+    if brief.notable_quote:
+        slides.append(DeckSlide(kind=SlideKind.QUOTE, quote=brief.notable_quote))
+    if brief.why_it_matters:
+        slides.append(
+            DeckSlide(
+                kind=SlideKind.TEXT, kicker="WHY IT MATTERS", body=brief.why_it_matters
+            )
+        )
+    if brief.future_impact:
+        slides.append(
+            DeckSlide(
+                kind=SlideKind.TEXT, kicker="WHAT'S NEXT", body=brief.future_impact
+            )
+        )
+    return slides[:MAX_DECK_SLIDES]
 
 
 def plan_asset(
@@ -34,14 +98,12 @@ def plan_asset(
         platform=platform,
         headline=brief.headline,
         subheadline=brief.subheadline,
+        category=brief.category,
         image_search_query=brief.image_search_query,
         image_generation_prompt=brief.image_generation_prompt,
     )
     if asset_type is AssetType.CAROUSEL:
-        beats = brief.story_beats or [
-            StoryBeat(heading=event.when, body=event.what) for event in brief.timeline
-        ]
-        plan.slides = beats or [StoryBeat(heading=brief.headline, body=brief.summary)]
+        plan.slides = build_deck(brief)
     elif asset_type is AssetType.INFOGRAPHIC:
         plan.facts = brief.key_facts or [brief.key_event]
     elif asset_type is AssetType.THUMBNAIL:

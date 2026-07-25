@@ -30,13 +30,32 @@ def test_choose_asset_types_prefers_carousel_and_infographic(fake_llm):
     assert AssetType.INFOGRAPHIC in types  # three numeric facts
 
 
-def test_plan_assets_carousel_falls_back_to_timeline(fake_llm):
+def test_plan_assets_carousel_narrative_deck(fake_llm):
+    from poster_core.models import SlideKind
+
+    article = Article(title="t", text="x")
+    brief = understand(article, fake_llm)
+    plans = plan_assets(brief, [AssetType.CAROUSEL], Platform.INSTAGRAM_POST)
+    slides = plans[0].slides
+    assert slides[0].kind is SlideKind.HERO
+    kinds = [s.kind for s in slides]
+    assert SlideKind.TIMELINE in kinds
+    assert SlideKind.STATS in kinds
+    assert SlideKind.QUOTE in kinds
+    assert len(slides) <= 8
+
+
+def test_deck_without_beats_uses_summary_slide(fake_llm):
+    from poster_core.models import SlideKind
+
     fake_llm.overrides = {"story_beats": []}
     article = Article(title="t", text="x")
     brief = understand(article, fake_llm)
     plans = plan_assets(brief, [AssetType.CAROUSEL], Platform.INSTAGRAM_POST)
-    assert len(plans[0].slides) == 3  # from timeline
-    assert plans[0].slides[0].heading == "Tuesday 09:00"
+    slides = plans[0].slides
+    assert slides[1].kicker == "WHAT HAPPENED"
+    timeline = next(s for s in slides if s.kind is SlideKind.TIMELINE)
+    assert timeline.timeline[0].when == "Tuesday 09:00"
 
 
 def test_thumbnail_headline_is_shortened(fake_llm):
