@@ -119,32 +119,62 @@ def stat_card(
     canvas: Image.Image, rect: tuple[int, int, int, int], fact: str,
     theme: Theme, brand: BrandKit,
 ) -> None:
-    """Card with the fact's leading figure oversized and the context below."""
+    """Card with the fact's leading figure oversized and the context below.
+
+    A fact with no digits gets a plain highlight treatment instead of a
+    fabricated placeholder figure — a bold sans em-dash at display size
+    reads as a decorative bar, not as "no number available".
+    """
     shadow_card(canvas, rect, theme)
     draw = ImageDraw.Draw(canvas)
     x0, y0, x1, y1 = rect
     g = grid(canvas.size)
     pad = g * 3
-    draw.rectangle((x0 + pad, y0 + pad, x0 + pad + g * 5, y0 + pad + max(4, g // 2)),
-                   fill=theme.accent)
-
-    match = _NUM.search(fact)
-    number = match.group(0) if match else "—"
-    caption = fact
     inner_w = x1 - x0 - 2 * pad
 
+    match = _NUM.search(fact)
+    if match is None:
+        _highlight_card(canvas, draw, rect, fact, theme, brand, pad, inner_w, g)
+        return
+
+    draw.rectangle((x0 + pad, y0 + pad, x0 + pad + g * 5, y0 + pad + max(4, g // 2)),
+                   fill=theme.accent)
+    number = match.group(0)
     num_font, num_lines = fit_text(
         draw, number, brand, round((y1 - y0) * 0.3), inner_w, max_lines=1
     )
     ny = y0 + pad + g * 2
-    draw.text((x0 + pad, ny), num_lines[0], font=num_font, fill=theme.accent,
-              stroke_width=1, stroke_fill=theme.accent)
+    draw.text((x0 + pad, ny), num_lines[0], font=num_font, fill=theme.accent)
 
     cap_font, cap_lines = fit_text(
-        draw, caption, brand, max(18, canvas.height // 46), inner_w,
+        draw, fact, brand, max(18, canvas.height // 46), inner_w,
         max_lines=3, bold=False,
     )
     cy = ny + round(num_font.size * 1.25)
+    for line in cap_lines:
+        draw.text((x0 + pad, cy), line, font=cap_font, fill=theme.text)
+        cy += round(cap_font.size * 1.4)
+
+
+def _highlight_card(
+    canvas: Image.Image, draw: ImageDraw.ImageDraw,
+    rect: tuple[int, int, int, int], fact: str, theme: Theme, brand: BrandKit,
+    pad: int, inner_w: int, g: int,
+) -> None:
+    """Fallback for a fact with no leading number: an accent bullet and a
+    vertically centred, larger-than-usual line of body text."""
+    x0, y0, x1, y1 = rect
+    r = g
+    cy_bullet = y0 + pad + r
+    draw.ellipse((x0 + pad, cy_bullet - r, x0 + pad + 2 * r, cy_bullet + r),
+                 fill=theme.accent)
+
+    cap_font, cap_lines = fit_text(
+        draw, fact, brand, max(22, canvas.height // 38), inner_w,
+        max_lines=4, bold=False,
+    )
+    total_h = len(cap_lines) * round(cap_font.size * 1.4)
+    cy = (y0 + y1) // 2 - total_h // 2 + round(g * 1.5)
     for line in cap_lines:
         draw.text((x0 + pad, cy), line, font=cap_font, fill=theme.text)
         cy += round(cap_font.size * 1.4)

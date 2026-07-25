@@ -61,24 +61,56 @@ def fit_text(
     """Wrap text into at most `max_lines`, shrinking the font down to
     `min_scale` of `base_px` before resorting to a visible ellipsis.
 
-    Guarantees no silent word drops: the result is either the complete text
-    or a rendering that ends in an ellipsis.
+    Guarantees no silent overflow: the result either fits `max_width` on
+    every line, or is truncated with a visible ellipsis. This matters for
+    unbreakable single-word tokens (e.g. "£250,000") which `wrap_text`
+    cannot split onto extra lines — without checking rendered width here,
+    such a token would sail past `max_width` at the base font size.
     """
     min_px = max(1, round(base_px * min_scale))
     px = base_px
     while True:
         font = load_font(brand, px, bold)
         lines = wrap_text(draw, text, font, max_width)
-        if len(lines) <= max_lines or px <= min_px:
+        fits = len(lines) <= max_lines and all(
+            draw.textlength(line, font=font) <= max_width for line in lines
+        )
+        if fits or px <= min_px:
             break
         px = max(min_px, px - max(2, px // 12))
-    if len(lines) > max_lines:
-        lines = lines[:max_lines]
-        last = lines[-1] + "…"
-        while draw.textlength(last, font=font) > max_width and " " in last[:-1]:
-            last = last[:-1].rsplit(" ", 1)[0] + "…"
-        lines[-1] = last
+
+    dropped_lines = len(lines) > max_lines  # content beyond max_lines was cut
+    lines = lines[:max_lines]
+    lines = [
+        _ellipsize(draw, line, font, max_width, force=dropped_lines and i == len(lines) - 1)
+        for i, line in enumerate(lines)
+    ]
     return font, lines
+
+
+def _ellipsize(
+    draw: ImageDraw.ImageDraw, line: str, font: ImageFont.FreeTypeFont,
+    max_width: int, force: bool = False,
+) -> str:
+    """Shrink a single line to fit `max_width`, ending in an ellipsis if cut.
+
+    `force` marks a line whose *own* width already fits but which still
+    needs a visible ellipsis because further lines were dropped elsewhere
+    (a `max_lines` cut, not a width overflow) — otherwise that truncation
+    would be silent. Prefers cutting at a word boundary but falls back to a
+    character cut so even a single unbreakable token (a number, a long
+    token with no spaces) is guaranteed to fit rather than overflow.
+    """
+    if draw.textlength(line, font=font) <= max_width and not force:
+        return line
+    truncated = line
+    while truncated and draw.textlength(truncated + "…", font=font) > max_width:
+        truncated = truncated[:-1]
+        if " " in truncated:
+            word_cut = truncated.rsplit(" ", 1)[0]
+            if draw.textlength(word_cut + "…", font=font) <= max_width:
+                return word_cut + "…"
+    return (truncated + "…") if truncated else "…"
 
 
 def cover_crop(data: bytes, size: tuple[int, int]) -> Image.Image:
