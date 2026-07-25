@@ -59,7 +59,7 @@ class OpenAIChat:
 class GeminiChat:
     """Google Gemini adapter (requires the `gemini` extra)."""
 
-    def __init__(self, model: str = "gemini-2.0-flash", api_key: str | None = None):
+    def __init__(self, model: str = "gemini-flash-latest", api_key: str | None = None):
         from google import genai
 
         self.model = model

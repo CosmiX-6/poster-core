@@ -7,7 +7,7 @@ import os
 
 class GeminiImageGenerator:
     def __init__(
-        self, model: str = "imagen-3.0-generate-002", api_key: str | None = None
+        self, model: str = "imagen-4.0-fast-generate-001", api_key: str | None = None
     ):
         from google import genai
 
