@@ -70,6 +70,28 @@ class Pipeline:
         brand kit (channel name, footer, colours) for this run only.
         """
         article, brief = self.analyze(source)
+        return self.run_from_brief(
+            article, brief,
+            asset_types=asset_types, platform=platform,
+            output_dir=output_dir, size=size, brand=brand,
+        )
+
+    def run_from_brief(
+        self,
+        article: Article,
+        brief: ContentBrief,
+        asset_types: list[AssetType] | None = None,
+        platform: Platform = Platform.INSTAGRAM_POST,
+        output_dir: str | Path | None = None,
+        size: tuple[int, int] | None = None,
+        brand: BrandKit | None = None,
+    ) -> list[GeneratedAsset]:
+        """Render assets from an already-computed brief, skipping analysis.
+
+        Useful when the caller already ran `analyze()` for its own purposes
+        (e.g. to also generate a caption) and wants to avoid paying for a
+        second LLM analysis call on the same article.
+        """
         plans = plan_assets(brief, asset_types, platform)
         reading_minutes = max(1, round(len(article.text.split()) / 220))
         for plan in plans:

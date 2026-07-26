@@ -22,7 +22,8 @@ _FONT_CANDIDATES_REGULAR = [
 
 
 def load_font(brand: BrandKit, size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
-    candidates = ([brand.font_path] if brand.font_path else []) + (
+    custom = (brand.font_path_bold if bold else brand.font_path_regular) or brand.font_path
+    candidates = ([custom] if custom else []) + (
         _FONT_CANDIDATES_BOLD if bold else _FONT_CANDIDATES_REGULAR
     )
     for path in candidates:

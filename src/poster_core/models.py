@@ -241,6 +241,8 @@ class BrandKit(BaseModel):
     text_color: str = "#FFFFFF"
     logo_path: str | None = None
     font_path: str | None = None
+    font_path_bold: str | None = None
+    font_path_regular: str | None = None
     footer: str | None = None
 
 
