@@ -165,7 +165,11 @@ def stat_card(
 
     draw.rectangle((x0 + pad, y0 + pad, x0 + pad + g * 5, y0 + pad + max(4, g // 2)),
                    fill=theme.accent)
-    number = match.group(0)
+    # A genuine number never legitimately ends the match on a bare "." or
+    # ",": a real decimal like "3.5" already has a digit after the dot
+    # inside the match, so this only ever strips a trailing sentence mark
+    # (e.g. "...before 2029." picking up the full stop).
+    number = match.group(0).rstrip(".,")
     num_font, num_lines = fit_text(
         draw, number, brand, round((y1 - y0) * 0.3), inner_w, max_lines=1
     )
