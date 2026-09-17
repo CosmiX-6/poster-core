@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from ..models import BrandKit, StoryCategory
 
 _DEFAULT_ACCENT = BrandKit().accent_color
+_DEFAULT_BACKGROUND = BrandKit().background_color
+_DEFAULT_TEXT = BrandKit().text_color
 
 
 class Theme(BaseModel):
@@ -79,13 +81,34 @@ CATEGORY_THEMES: dict[StoryCategory, Theme] = {
 
 
 def resolve_theme(category: StoryCategory, brand: BrandKit) -> Theme:
-    """Semantic theme for the category; an explicitly customised brand accent
-    (anything other than the BrandKit default) wins over the category accent."""
+    """Semantic theme for the category, layered with brand overrides:
+
+    - An explicitly customised `background_color`/`text_color` (anything
+      other than the BrandKit default) wins over the category's own
+      background/text, letting a channel force one unified look across
+      every category instead of poster-core's built-in per-category palette.
+    - An explicitly customised `accent_color` wins over the category accent,
+      same as before.
+    - `category_accents` (category value -> hex) wins over even that, for a
+      channel that wants a distinct accent per category rather than one
+      accent for everything. Additive and backward compatible: an unset map
+      leaves every category's built-in accent untouched.
+    """
     theme = CATEGORY_THEMES.get(category, CATEGORY_THEMES[StoryCategory.GENERAL])
+    updates: dict[str, str] = {}
+    if brand.background_color != _DEFAULT_BACKGROUND:
+        updates["background"] = brand.background_color
+    if brand.text_color != _DEFAULT_TEXT:
+        updates["text"] = brand.text_color
     if brand.accent_color != _DEFAULT_ACCENT:
-        theme = theme.model_copy(
-            update={"accent": brand.accent_color, "accent_text": "#FFFFFF"}
-        )
+        updates["accent"] = brand.accent_color
+        updates["accent_text"] = "#FFFFFF"
+    override_accent = brand.category_accents.get(category.value)
+    if override_accent:
+        updates["accent"] = override_accent
+        updates["accent_text"] = "#FFFFFF"
+    if updates:
+        theme = theme.model_copy(update=updates)
     return theme
 
 

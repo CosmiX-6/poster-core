@@ -180,6 +180,7 @@ class SlideKind(str, Enum):
     COMPARISON = "comparison"
     QUOTE = "quote"
     CONCLUSION = "conclusion"
+    CTA = "cta"  # closing follow/CTA slide, always the deck's last slide
 
 
 class DeckSlide(BaseModel):
@@ -244,6 +245,14 @@ class BrandKit(BaseModel):
     font_path_bold: str | None = None
     font_path_regular: str | None = None
     footer: str | None = None
+    # StoryCategory value -> hex. Overrides that one category's accent (see
+    # render.theme.resolve_theme), for a channel that wants a distinct
+    # accent per category rather than one accent_color for everything.
+    category_accents: dict[str, str] = Field(default_factory=dict)
+    # "@handle"-style social handle, without the "@", used by the deck's
+    # closing CTA slide ("Follow @handle for daily breakdowns"). Falls back
+    # to generic CTA copy when unset.
+    social_handle: str | None = None
 
 
 class GeneratedAsset(BaseModel):

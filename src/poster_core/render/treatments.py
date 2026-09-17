@@ -15,18 +15,39 @@ def treat_hero(img: Image.Image) -> Image.Image:
     return img
 
 
-def scrim(img: Image.Image, start: float = 0.4, strength: float = 0.92,
-          color: str = "#000000") -> Image.Image:
-    """Darken the lower part of the image with a smooth gradient so overlaid
-    text stays legible."""
+# Bottom-to-top stops as (fraction of height from the bottom, alpha),
+# matching the design system's
+# linear-gradient(to top, rgba(10,14,26,.95) 0%, rgba(10,14,26,.85) 35%, rgba(10,14,26,0) 65%)
+# -- a near-opaque band low in frame, fading out by two-thirds up, so text
+# stays legible regardless of what's in the photo rather than relying on a
+# generic vignette.
+_DEFAULT_SCRIM_STOPS: tuple[tuple[float, float], ...] = ((0.0, 0.95), (0.35, 0.85), (0.65, 0.0))
+
+
+def scrim(img: Image.Image, color: str = "#0A0E1A",
+          stops: tuple[tuple[float, float], ...] = _DEFAULT_SCRIM_STOPS) -> Image.Image:
+    """Darken the image with a piecewise-linear gradient (from the bottom
+    edge upward) so overlaid text stays legible regardless of the photo."""
     w, h = img.size
     mask = Image.new("L", (1, h), 0)
-    y0 = int(h * start)
-    for y in range(y0, h):
-        mask.putpixel((0, y), int(255 * strength * ((y - y0) / (h - y0)) ** 1.4))
+    for y in range(h):
+        frac_from_bottom = (h - 1 - y) / max(h - 1, 1)
+        mask.putpixel((0, y), round(255 * _alpha_at(frac_from_bottom, stops)))
     overlay = Image.new("RGB", (w, h), color)
     img.paste(overlay, (0, 0), mask.resize((w, h)))
     return img
+
+
+def _alpha_at(frac: float, stops: tuple[tuple[float, float], ...]) -> float:
+    """Linear interpolation between consecutive (fraction, alpha) stops.
+    Below the first stop or above the last, holds that stop's value."""
+    if frac <= stops[0][0]:
+        return stops[0][1]
+    for (f0, a0), (f1, a1) in zip(stops, stops[1:]):
+        if frac <= f1:
+            t = (frac - f0) / (f1 - f0)
+            return a0 + (a1 - a0) * t
+    return stops[-1][1]
 
 
 def _vignette(img: Image.Image, strength: float) -> Image.Image:

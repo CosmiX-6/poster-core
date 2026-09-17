@@ -92,7 +92,8 @@ class Pipeline:
         (e.g. to also generate a caption) and wants to avoid paying for a
         second LLM analysis call on the same article.
         """
-        plans = plan_assets(brief, asset_types, platform)
+        active_brand = brand or self.config.brand
+        plans = plan_assets(brief, asset_types, platform, active_brand)
         reading_minutes = max(1, round(len(article.text.split()) / 220))
         for plan in plans:
             if size is not None:
@@ -107,7 +108,6 @@ class Pipeline:
             stock=self._stock,
             generator=self.generator,
         )
-        active_brand = brand or self.config.brand
         return [
             self._render_plan(plan, article, sourcer, out, active_brand)
             for plan in plans

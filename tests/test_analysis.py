@@ -46,8 +46,11 @@ def test_plan_assets_carousel_narrative_deck(fake_llm):
     assert SlideKind.STATS in kinds
     assert SlideKind.COMPARISON in kinds
     assert SlideKind.QUOTE in kinds
-    assert SlideKind.CONCLUSION in kinds
     assert len(slides) <= 10
+
+    # the deck always closes on a follow/CTA slide, even if that means a
+    # content section (here, CONCLUSION) gets bumped by the 10-slide cap
+    assert slides[-1].kind is SlideKind.CTA
 
     # every slide but the last carries a swipe-bait transition
     assert all(s.transition for s in slides[:-1])

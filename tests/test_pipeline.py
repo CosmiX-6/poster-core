@@ -100,6 +100,39 @@ def test_per_run_brand_override(tmp_path, fake_llm, fake_generator, fake_stock):
     assert pipe.config.brand.footer is None
 
 
+def test_full_run_with_branded_theme_and_logo(tmp_path, fake_llm, fake_generator, fake_stock):
+    """End-to-end smoke test for the design-system brand fields: unified
+    background/category accent override, social-handle-driven CTA slide,
+    and a persistent logo watermark -- all wired through one real run."""
+    from poster_core.models import BrandKit
+
+    logo_path = tmp_path / "logo.png"
+    Image.new("RGB", (200, 200), "#FFFFFF").save(logo_path)
+
+    brand = BrandKit(
+        name="CONTEXT UNFILTERED",
+        background_color="#0A0E1A",
+        category_accents={"science": "#14B8A6"},
+        social_handle="contextunfiltered",
+        logo_path=str(logo_path),
+    )
+    config = PipelineConfig(output_dir=str(tmp_path), brand=brand)
+    pipe = Pipeline(config, llm=fake_llm, generator=fake_generator, stock=fake_stock)
+    assets = pipe.run(ARTICLE_TEXT, asset_types=[AssetType.CAROUSEL])
+
+    carousel = assets[0]
+    assert len(carousel.paths) == 10
+    with Image.open(carousel.paths[-1]) as cta_page:
+        assert cta_page.size == PLATFORM_SIZES[Platform.INSTAGRAM_POST]
+    # Every page should carry the logo watermark (a non-black pixel where
+    # the mark lands, top-right) -- confirms wiring reaches every renderer,
+    # not just the ones directly exercised by test_render.py's unit tests.
+    for path in carousel.paths:
+        with Image.open(path) as page:
+            w, _ = page.size
+            assert page.convert("RGB").getpixel((w - 30, 30)) != (0, 0, 0)
+
+
 def test_sourcer_prefers_article_image(monkeypatch, fake_stock):
     from poster_core.models import ArticleImage, AssetPlan, SourcedImage
     from conftest import solid_png

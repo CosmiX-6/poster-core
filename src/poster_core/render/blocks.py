@@ -12,8 +12,15 @@ from PIL import Image, ImageDraw, ImageFilter
 
 from ..models import BrandKit, ComparisonPair, MoneyFlowStep, TimelineEvent
 from .icons import draw_icon
-from .layout import fit_text, load_font
+from .layout import draw_tracked_text, fit_text, load_font, tracked_text_width
 from .theme import Theme
+
+# spec: progress counter is 20px @ h=1920.
+_PROGRESS_COUNTER_DIVISOR = 96
+# spec: section-label/kicker tracking, +0.12em, all caps.
+_KICKER_TRACKING_EM = 0.12
+# spec: progress-counter tracking, +0.05em.
+_COUNTER_TRACKING_EM = 0.05
 
 _NUM = re.compile(
     r"(?:[£$€]\s?)?\d[\d,.]*(?:%|\s?(?:million|billion|bn|m|k)\b)?", re.I
@@ -54,11 +61,11 @@ def chip(
     draw = ImageDraw.Draw(canvas)
     font = load_font(brand, px)
     text = text.upper()
-    tw = draw.textlength(text, font=font)
+    tw = tracked_text_width(draw, text, font, _KICKER_TRACKING_EM)
     pad_x, pad_y = round(px * 0.8), round(px * 0.45)
     w, h = round(tw + 2 * pad_x), px + 2 * pad_y
     draw.rounded_rectangle((x, y, x + w, y + h), radius=h // 2, fill=theme.accent)
-    draw.text((x + pad_x, y + pad_y), text, font=font, fill=theme.accent_text)
+    draw_tracked_text(draw, (x + pad_x, y + pad_y), text, font, _KICKER_TRACKING_EM, theme.accent_text)
     return w
 
 
@@ -74,7 +81,7 @@ def kicker(
         s = round(px * 1.15)
         draw_icon(draw, icon, x, y + (px - s) // 2 + 1, s, theme.accent)
         tx += s + round(px * 0.6)
-    draw.text((tx, y), " ".join(text.upper()), font=font, fill=theme.accent)
+    draw_tracked_text(draw, (tx, y), text.upper(), font, _KICKER_TRACKING_EM, theme.accent)
     return px
 
 
@@ -83,11 +90,14 @@ def page_counter(
     brand: BrandKit, margin: int,
 ) -> None:
     draw = ImageDraw.Draw(canvas)
-    px = max(16, canvas.height // 60)
+    px = max(16, canvas.height // _PROGRESS_COUNTER_DIVISOR)
     font = load_font(brand, px, bold=False)
     text = f"{index:02d} — {total:02d}"
-    tw = draw.textlength(text, font=font)
-    draw.text((canvas.width - margin - tw, margin), text, font=font, fill=theme.muted)
+    tracked_w = tracked_text_width(draw, text, font, _COUNTER_TRACKING_EM)
+    draw_tracked_text(
+        draw, (canvas.width - margin - tracked_w, margin), text, font,
+        _COUNTER_TRACKING_EM, theme.muted,
+    )
 
 
 def progress_bar(canvas: Image.Image, index: int, total: int, theme: Theme) -> None:
@@ -120,14 +130,34 @@ def footer(
     canvas: Image.Image, theme: Theme, brand: BrandKit, margin: int,
     credit: str | None = None, meta: str | None = None,
 ) -> None:
-    """Subtle source footer: brand · credit · metadata in one quiet line."""
+    """Subtle source footer: brand · Image: credit · Source: outlet, in one
+    quiet line (e.g. "CONTEXT UNFILTERED · Image: Reuters · Source: AP")."""
     draw = ImageDraw.Draw(canvas)
     px = max(16, canvas.height // 58)
     font = load_font(brand, px, bold=False)
     y = canvas.height - margin - px
-    parts = [p for p in (brand.footer or brand.name, credit, meta) if p]
+    parts = [p for p in (brand.footer or brand.name, f"Image: {credit}" if credit else None, meta) if p]
     if parts:
         draw.text((margin, y), "  ·  ".join(parts), font=font, fill=theme.muted)
+
+
+def watermark_logo(canvas: Image.Image, brand: BrandKit, size: tuple[int, int],
+                    opacity: float = 0.6) -> None:
+    """Persistent brand logo mark, top-right, on every slide -- so a
+    forwarded screenshot still credits the account. No-op when the brand
+    has no logo configured."""
+    if not brand.logo_path:
+        return
+    try:
+        logo = Image.open(brand.logo_path).convert("RGBA")
+    except (FileNotFoundError, OSError):
+        return
+    w, h = size
+    mark = round(w * (40 / 1080))
+    logo = logo.resize((mark, mark))
+    logo.putalpha(logo.getchannel("A").point(lambda a: round(a * opacity)))
+    inset = round(w * (24 / 1080))
+    canvas.paste(logo, (w - mark - inset, inset), logo)
 
 
 def watermark_icon(canvas: Image.Image, kind: str, theme: Theme) -> None:

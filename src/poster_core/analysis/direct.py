@@ -16,6 +16,7 @@ import re
 from ..models import (
     AssetPlan,
     AssetType,
+    BrandKit,
     ContentBrief,
     DeckSlide,
     Platform,
@@ -71,10 +72,11 @@ def _append_text_like(
     slides.append(DeckSlide(kind=kind, kicker=kicker, heading=heading, body=body))
 
 
-def build_deck(brief: ContentBrief) -> list[DeckSlide]:
+def build_deck(brief: ContentBrief, brand: BrandKit | None = None) -> list[DeckSlide]:
     """Compose a documentary-style carousel narrative from whatever the
     story supports: a cold open, one new idea per slide, and a deliberate
-    close — never a data dump, never filler."""
+    close that always asks for the follow — never a data dump, never
+    filler, and never silent about wanting the viewer back."""
     slides: list[DeckSlide] = [
         DeckSlide(kind=SlideKind.HOOK, heading=brief.hook or brief.headline)
     ]
@@ -132,9 +134,21 @@ def build_deck(brief: ContentBrief) -> list[DeckSlide]:
             DeckSlide(kind=SlideKind.CONCLUSION, kicker="WHAT HAPPENS NEXT", body=closing)
         )
 
-    slides = slides[:MAX_DECK_SLIDES]
+    # Reserve the last slot for the CTA slide so it's never dropped by the
+    # deck-length cap -- every deck ends by asking for the follow.
+    slides = slides[: MAX_DECK_SLIDES - 1]
+    slides.append(_build_cta_slide(brief, brand or BrandKit()))
     _assign_transitions(slides)
     return slides
+
+
+def _build_cta_slide(brief: ContentBrief, brand: BrandKit) -> DeckSlide:
+    heading = (
+        f"Follow @{brand.social_handle} for daily breakdowns"
+        if brand.social_handle
+        else "Follow for daily breakdowns"
+    )
+    return DeckSlide(kind=SlideKind.CTA, heading=heading, body=_shorten(brief.headline, max_words=10))
 
 
 def _assign_transitions(slides: list[DeckSlide]) -> None:
@@ -144,7 +158,8 @@ def _assign_transitions(slides: list[DeckSlide]) -> None:
 
 
 def plan_asset(
-    brief: ContentBrief, asset_type: AssetType, platform: Platform
+    brief: ContentBrief, asset_type: AssetType, platform: Platform,
+    brand: BrandKit | None = None,
 ) -> AssetPlan:
     plan = AssetPlan(
         asset_type=asset_type,
@@ -156,7 +171,7 @@ def plan_asset(
         image_generation_prompt=brief.image_generation_prompt,
     )
     if asset_type is AssetType.CAROUSEL:
-        plan.slides = build_deck(brief)
+        plan.slides = build_deck(brief, brand)
     elif asset_type is AssetType.INFOGRAPHIC:
         plan.facts = brief.key_facts or [brief.key_event]
     elif asset_type is AssetType.THUMBNAIL:
@@ -170,9 +185,10 @@ def plan_assets(
     brief: ContentBrief,
     asset_types: list[AssetType] | None,
     platform: Platform,
+    brand: BrandKit | None = None,
 ) -> list[AssetPlan]:
     types = asset_types or choose_asset_types(brief)
-    return [plan_asset(brief, t, platform) for t in types]
+    return [plan_asset(brief, t, platform, brand) for t in types]
 
 
 def _shorten(text: str, max_words: int) -> str:

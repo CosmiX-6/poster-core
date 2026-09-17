@@ -43,12 +43,13 @@ def test_deck_has_no_filler_for_thin_stories():
     slides = build_deck(brief)
     kinds = [s.kind for s in slides]
     # Nothing to build a timeline/stats/quote/money-trail from: just the
-    # cold open and what happened.
-    assert kinds == [SlideKind.HOOK, SlideKind.TEXT]
+    # cold open, what happened, and the closing CTA (always present).
+    assert kinds == [SlideKind.HOOK, SlideKind.TEXT, SlideKind.CTA]
     assert slides[1].kicker == "WHAT HAPPENED"
     assert slides[0].heading == brief.headline  # falls back when no hook given
     assert slides[0].transition is not None
-    assert slides[1].transition is None  # last slide never baits a swipe
+    assert slides[1].transition is not None
+    assert slides[2].transition is None  # last slide never baits a swipe
 
 
 def test_deck_includes_only_supported_sections():

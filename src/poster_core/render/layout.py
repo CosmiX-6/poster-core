@@ -34,6 +34,32 @@ def load_font(brand: BrandKit, size: int, bold: bool = True) -> ImageFont.FreeTy
     return ImageFont.load_default(size)
 
 
+def tracked_text_width(
+    draw: ImageDraw.ImageDraw, text: str, font, tracking_em: float
+) -> float:
+    """Width `text` would occupy under `draw_tracked_text`'s letter-spacing."""
+    if not text:
+        return 0.0
+    extra = font.size * tracking_em
+    return sum(draw.textlength(ch, font=font) + extra for ch in text) - extra
+
+
+def draw_tracked_text(
+    draw: ImageDraw.ImageDraw, xy: tuple[float, float], text: str, font,
+    tracking_em: float, fill,
+) -> float:
+    """Draw `text` glyph by glyph with extra letter-spacing (`tracking_em`,
+    as a fraction of the font's point size, added after every character).
+    Pillow's ImageDraw.text has no native tracking support. Returns the
+    total width drawn, so callers can position whatever comes next."""
+    x, y = xy
+    extra = font.size * tracking_em
+    for ch in text:
+        draw.text((x, y), ch, font=font, fill=fill)
+        x += draw.textlength(ch, font=font) + extra
+    return x - xy[0]
+
+
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list[str]:
     lines: list[str] = []
     current = ""
