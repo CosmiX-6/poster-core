@@ -262,3 +262,7 @@ class GeneratedAsset(BaseModel):
     plan: AssetPlan
     image_origin: ImageOrigin = ImageOrigin.NONE
     credit: str | None = None
+    # The sourced photo itself (RGB JPEG beside the rendered PNGs), for hosts
+    # that want to reuse it -- e.g. as footage in a video. None when the
+    # asset fell back to a typographic treatment.
+    source_image_path: str | None = None

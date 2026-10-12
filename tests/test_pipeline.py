@@ -43,6 +43,21 @@ def test_full_run_produces_expected_assets(tmp_path, fake_llm, fake_generator, f
     assert len(carousel.paths) == 10
 
 
+def test_sourced_photo_is_exposed_for_reuse(tmp_path, fake_llm, fake_generator, fake_stock):
+    pipe = make_pipeline(tmp_path, fake_llm, fake_generator, fake_stock)
+    cover = pipe.run(ARTICLE_TEXT, asset_types=[AssetType.COVER])[0]
+    with Image.open(cover.source_image_path) as img:
+        assert img.format == "JPEG" and img.size == (1200, 1200)  # untouched stock size
+
+
+def test_no_source_image_on_typographic_fallback(tmp_path, fake_llm, fake_stock):
+    fake_stock.hit = False
+    config = PipelineConfig(output_dir=str(tmp_path), image_provider="none")
+    pipe = Pipeline(config, llm=fake_llm, stock=fake_stock)
+    assets = pipe.run(ARTICLE_TEXT, asset_types=[AssetType.COVER, AssetType.INFOGRAPHIC])
+    assert all(a.source_image_path is None for a in assets)
+
+
 def test_generation_fallback_when_stock_misses(tmp_path, fake_llm, fake_generator, fake_stock):
     fake_stock.hit = False
     pipe = make_pipeline(tmp_path, fake_llm, fake_generator, fake_stock)

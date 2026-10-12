@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import re
 from pathlib import Path
+
+from PIL import Image
 
 from .analysis import plan_assets, understand
 from .analysis.llm import GeminiChat, LLMClient, OpenAIChat
@@ -152,6 +155,7 @@ class Pipeline:
             plan=plan,
             image_origin=image.origin if image else ImageOrigin.NONE,
             credit=image.credit if image else None,
+            source_image_path=_save_source_image(image, out) if image else None,
         )
 
     @property
@@ -188,4 +192,19 @@ def _slug(text: str, max_len: int = 60) -> str:
 
 def _save(img, path: Path) -> str:
     img.save(path, format="PNG")
+    return str(path)
+
+
+def _save_source_image(image: SourcedImage, out: Path) -> str | None:
+    """Keep the sourced photo next to the rendered assets, untouched apart
+    from normalising to RGB JPEG. Never fails the render: an image the
+    renderers could not open either just yields None."""
+    if not image.data:
+        return None
+    path = out / "source_image.jpg"
+    try:
+        with Image.open(io.BytesIO(image.data)) as img:
+            img.convert("RGB").save(path, format="JPEG", quality=92)
+    except Exception:
+        return None
     return str(path)
