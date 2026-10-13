@@ -1,5 +1,5 @@
 from poster_core.analysis import choose_asset_types, plan_assets, understand
-from poster_core.analysis.llm import parse_json_response
+from poster_core.analysis.llm import RETRY_DELAYS, GeminiChat, call_with_retries, parse_json_response
 from poster_core.errors import AnalysisError
 from poster_core.models import Article, AssetType, Platform
 
@@ -80,3 +80,67 @@ def test_thumbnail_headline_is_shortened(fake_llm):
     plans = plan_assets(brief, [AssetType.THUMBNAIL], Platform.YOUTUBE_THUMBNAIL)
     assert len(plans[0].headline.split()) <= 5
     assert plans[0].subheadline is None
+
+
+class _ProviderError(Exception):
+    """Shaped like google-genai's APIError: the HTTP status is on `.code`."""
+
+    def __init__(self, code: int):
+        super().__init__(f"{code} from provider")
+        self.code = code
+
+
+def _flaky(failures: list[Exception], result="ok"):
+    """A call that raises each queued error once, then returns `result`."""
+    queue, calls = list(failures), []
+
+    def call():
+        calls.append(1)
+        if queue:
+            raise queue.pop(0)
+        return result
+
+    return call, calls
+
+
+def test_retries_an_overloaded_model_until_it_answers():
+    call, calls = _flaky([_ProviderError(503), _ProviderError(429)])
+    slept: list[float] = []
+    assert call_with_retries(call, sleep=slept.append) == "ok"
+    assert len(calls) == 3 and slept == list(RETRY_DELAYS[:2])
+
+
+def test_gives_up_with_the_last_error_when_the_outage_lasts():
+    call, calls = _flaky([_ProviderError(503)] * 10)
+    slept: list[float] = []
+    with pytest.raises(_ProviderError):
+        call_with_retries(call, sleep=slept.append)
+    assert len(calls) == len(RETRY_DELAYS) + 1 and slept == list(RETRY_DELAYS)
+
+
+@pytest.mark.parametrize("error", [_ProviderError(400), _ProviderError(401), ValueError("no status")])
+def test_errors_that_will_not_clear_are_not_retried(error):
+    call, calls = _flaky([error])
+    slept: list[float] = []
+    with pytest.raises(type(error)):
+        call_with_retries(call, sleep=slept.append)
+    assert len(calls) == 1 and slept == []
+
+
+def test_gemini_adapter_retries_a_503(monkeypatch):
+    monkeypatch.setattr("poster_core.analysis.llm.time.sleep", lambda _s: None)
+
+    class _Models:
+        calls = 0
+
+        def generate_content(self, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise _ProviderError(503)
+            return type("Resp", (), {"text": '{"headline": "ok"}'})()
+
+    chat = object.__new__(GeminiChat)  # skip __init__: no SDK or key needed
+    chat.model = "gemini-flash-latest"
+    chat._client = type("Client", (), {"models": _Models()})()
+    assert chat.complete_json("system", "user") == {"headline": "ok"}
+    assert chat._client.models.calls == 2
