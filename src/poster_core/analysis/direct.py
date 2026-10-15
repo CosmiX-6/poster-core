@@ -87,20 +87,23 @@ def build_deck(brief: ContentBrief, brand: BrandKit | None = None) -> list[DeckS
     first = beats[0]
     _append_text_like(slides, "WHAT HAPPENED", first.heading, first.body or brief.summary)
 
-    # WHY — root cause (the structural force driving the story)
+    # WHY — root cause (one sentence, displayed as a big headline)
     if brief.root_cause:
         slides.append(
-            DeckSlide(kind=SlideKind.WHY, kicker="WHY IT'S HAPPENING", body=brief.root_cause)
+            DeckSlide(kind=SlideKind.WHY, kicker="WHY IT'S HAPPENING", heading=brief.root_cause)
         )
     elif len(beats) > 1:
         second = beats[1]
         _append_text_like(slides, "THE DETAIL", second.heading, second.body)
 
-    # IMPACT — who gains, who pays
+    # IMPACT — who gains, who pays; lead line as heading, details as body
     if brief.who_benefits or brief.who_is_hurt:
-        impact_body = _build_impact_body(brief)
+        impact_head, impact_body = _build_impact_slide(brief)
         slides.append(
-            DeckSlide(kind=SlideKind.IMPACT, kicker="WHO WINS / WHO LOSES", body=impact_body)
+            DeckSlide(
+                kind=SlideKind.IMPACT, kicker="WHO WINS / WHO LOSES",
+                heading=impact_head, body=impact_body,
+            )
         )
 
     # Data scenes — only what the story actually supports
@@ -151,13 +154,13 @@ def build_deck(brief: ContentBrief, brand: BrandKit | None = None) -> list[DeckS
     if brief.notable_quote:
         slides.append(DeckSlide(kind=SlideKind.QUOTE, quote=brief.notable_quote))
 
-    # BIGGER PICTURE — the systemic/historical frame
+    # BIGGER PICTURE — one sentence as a big headline
     if brief.bigger_picture:
         slides.append(
             DeckSlide(
                 kind=SlideKind.BIGGER_PICTURE,
                 kicker="THE BIGGER PICTURE",
-                body=brief.bigger_picture,
+                heading=brief.bigger_picture,
             )
         )
 
@@ -182,15 +185,16 @@ _SCREAM_CATEGORIES = {
 }
 
 
-def _build_impact_body(brief: ContentBrief) -> str:
+def _build_impact_slide(brief: ContentBrief) -> tuple[str | None, str | None]:
+    """Heading = the primary winner or loser; body = remaining details."""
+    head = brief.who_benefits or brief.who_is_hurt
     parts = []
-    if brief.who_benefits:
-        parts.append(f"Wins: {brief.who_benefits}")
-    if brief.who_is_hurt:
+    if brief.who_benefits and brief.who_is_hurt:
         parts.append(f"Loses: {brief.who_is_hurt}")
     if brief.real_cost:
         parts.append(f"Cost: {brief.real_cost}")
-    return "  \n".join(parts)
+    body = "  \n".join(parts) if parts else None
+    return head, body
 
 
 def _build_cta_slide(brief: ContentBrief, brand: BrandKit) -> DeckSlide:
