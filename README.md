@@ -205,6 +205,26 @@ for politics/breaking, green for finance, purple for AI/science). Passing a
 custom `accent_color` in your `BrandKit` overrides the category colour while
 keeping everything else themed correctly.
 
+## GeneratedAsset fields
+
+Each asset returned by `pipe.run(...)` carries:
+
+| Field | Type | What it holds |
+|---|---|---|
+| `asset_type` | `AssetType` | `cover`, `carousel`, `infographic`, `thumbnail` |
+| `paths` | `list[Path]` | Rendered PNG file paths |
+| `image_origin` | `str` | `article`, `stock`, `generated`, or `none` |
+| `credit` | `str \| None` | Photo credit for display (e.g. "Image: Unsplash") |
+| `source_image_path` | `str \| None` | Absolute path to the source photo saved alongside the PNGs (set when a real image was sourced; `None` on a purely typographic render). Downstream tools such as narovva's motion-reel renderer use this to embed the original photo rather than the composited PNG. |
+
+## Resilience
+
+Gemini and other providers can return transient errors (429 rate-limit, 503
+overloaded). `poster_core.analysis.llm.call_with_retries` wraps every LLM
+call and retries on HTTP status codes 429, 500, 502, 503, 504 with delays of
+3 s, 8 s, and 20 s before giving up. This is applied automatically inside
+`GeminiChat.complete_json`; OpenAI's SDK retries itself.
+
 ## Development
 
 ```bash
