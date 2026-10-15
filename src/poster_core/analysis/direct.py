@@ -22,6 +22,7 @@ from ..models import (
     Platform,
     SlideKind,
     StoryBeat,
+    StoryCategory,
 )
 
 _NUMBERY = re.compile(r"\d")
@@ -73,25 +74,36 @@ def _append_text_like(
 
 
 def build_deck(brief: ContentBrief, brand: BrandKit | None = None) -> list[DeckSlide]:
-    """Compose a documentary-style carousel narrative from whatever the
-    story supports: a cold open, one new idea per slide, and a deliberate
-    close that always asks for the follow — never a data dump, never
-    filler, and never silent about wanting the viewer back."""
+    """Narrative-arc carousel: hook → what → why → impact → data → bigger
+    picture → conclusion → CTA. Each slide introduces exactly one idea; the
+    story decodes the *problem behind the news*, not just the event itself.
+    Only sections the brief actually supports are included; no filler."""
     slides: list[DeckSlide] = [
         DeckSlide(kind=SlideKind.HOOK, heading=brief.hook or brief.headline)
     ]
 
+    # WHAT — the event itself
     beats = brief.story_beats or [StoryBeat(heading=brief.key_event, body=brief.summary)]
     first = beats[0]
     _append_text_like(slides, "WHAT HAPPENED", first.heading, first.body or brief.summary)
 
-    if len(beats) > 1:
+    # WHY — root cause (the structural force driving the story)
+    if brief.root_cause:
+        slides.append(
+            DeckSlide(kind=SlideKind.WHY, kicker="WHY IT'S HAPPENING", body=brief.root_cause)
+        )
+    elif len(beats) > 1:
         second = beats[1]
         _append_text_like(slides, "THE DETAIL", second.heading, second.body)
 
-    if brief.why_it_matters:
-        _append_text_like(slides, "WHY IT MATTERS", None, brief.why_it_matters)
+    # IMPACT — who gains, who pays
+    if brief.who_benefits or brief.who_is_hurt:
+        impact_body = _build_impact_body(brief)
+        slides.append(
+            DeckSlide(kind=SlideKind.IMPACT, kicker="WHO WINS / WHO LOSES", body=impact_body)
+        )
 
+    # Data scenes — only what the story actually supports
     if len(brief.money_trail) >= 2:
         slides.append(
             DeckSlide(
@@ -112,9 +124,20 @@ def build_deck(brief: ContentBrief, brand: BrandKit | None = None) -> list[DeckS
 
     numbers = numeric_facts(brief)
     if len(numbers) >= 2:
-        slides.append(
-            DeckSlide(kind=SlideKind.STATS, kicker="KEY NUMBERS", facts=numbers[:4])
-        )
+        # Surface the single most striking number as a SCREAM scene when the
+        # story is data-heavy (AI, finance, science) and there are enough
+        # numbers to also fill a STATS scene.
+        if len(numbers) >= 3 and brief.category in _SCREAM_CATEGORIES:
+            slides.append(
+                DeckSlide(kind=SlideKind.SCREAM, kicker="THE NUMBER", facts=[numbers[0]])
+            )
+            slides.append(
+                DeckSlide(kind=SlideKind.STATS, kicker="BY THE NUMBERS", facts=numbers[1:4])
+            )
+        else:
+            slides.append(
+                DeckSlide(kind=SlideKind.STATS, kicker="BY THE NUMBERS", facts=numbers[:4])
+            )
 
     if brief.comparison:
         slides.append(
@@ -128,18 +151,46 @@ def build_deck(brief: ContentBrief, brand: BrandKit | None = None) -> list[DeckS
     if brief.notable_quote:
         slides.append(DeckSlide(kind=SlideKind.QUOTE, quote=brief.notable_quote))
 
+    # BIGGER PICTURE — the systemic/historical frame
+    if brief.bigger_picture:
+        slides.append(
+            DeckSlide(
+                kind=SlideKind.BIGGER_PICTURE,
+                kicker="THE BIGGER PICTURE",
+                body=brief.bigger_picture,
+            )
+        )
+
+    # CONCLUSION — what comes next
     closing = brief.closing_line or brief.future_impact
     if closing:
         slides.append(
             DeckSlide(kind=SlideKind.CONCLUSION, kicker="WHAT HAPPENS NEXT", body=closing)
         )
 
-    # Reserve the last slot for the CTA slide so it's never dropped by the
-    # deck-length cap -- every deck ends by asking for the follow.
+    # Reserve the last slot for the CTA — every deck ends by asking for the follow.
     slides = slides[: MAX_DECK_SLIDES - 1]
     slides.append(_build_cta_slide(brief, brand or BrandKit()))
     _assign_transitions(slides)
     return slides
+
+
+# Categories where a single oversized stat is worth its own SCREAM scene.
+_SCREAM_CATEGORIES = {
+    StoryCategory.AI, StoryCategory.TECHNOLOGY, StoryCategory.FINANCE,
+    StoryCategory.SCIENCE, StoryCategory.HEALTH, StoryCategory.BUSINESS,
+}
+
+
+def _build_impact_body(brief: ContentBrief) -> str:
+    parts = []
+    if brief.who_benefits:
+        parts.append(f"Wins: {brief.who_benefits}")
+    if brief.who_is_hurt:
+        parts.append(f"Loses: {brief.who_is_hurt}")
+    if brief.real_cost:
+        parts.append(f"Cost: {brief.real_cost}")
+    return "  \n".join(parts)
 
 
 def _build_cta_slide(brief: ContentBrief, brand: BrandKit) -> DeckSlide:
@@ -148,7 +199,11 @@ def _build_cta_slide(brief: ContentBrief, brand: BrandKit) -> DeckSlide:
         if brand.social_handle
         else "Follow for daily breakdowns"
     )
-    return DeckSlide(kind=SlideKind.CTA, heading=heading, body=_shorten(brief.headline, max_words=10))
+    # Use the bigger_picture or closing_line as a story-specific payoff body
+    # so the CTA ties back to the narrative rather than being generic.
+    payoff = brief.bigger_picture or brief.closing_line or brief.future_impact
+    body = _shorten(payoff, max_words=12) if payoff else _shorten(brief.headline, max_words=10)
+    return DeckSlide(kind=SlideKind.CTA, heading=heading, body=body)
 
 
 def _assign_transitions(slides: list[DeckSlide]) -> None:

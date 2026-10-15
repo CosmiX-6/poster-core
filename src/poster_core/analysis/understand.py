@@ -62,6 +62,23 @@ Analyse the article above and return JSON with exactly these keys:
   (before/after, this year vs last, X vs Y) — {"title": str|null, "label_a":
   str, "value_a": str, "label_b": str, "value_b": str}. Null if nothing
   compares cleanly.
+- root_cause: one sentence — WHY is this happening? The underlying driver or
+  structural force, not merely what happened (or null if the article does not
+  address cause)
+- who_benefits: one sentence — who concretely gains from this (person, company,
+  group, system), grounded strictly in the article (or null)
+- who_is_hurt: one sentence — who loses or bears the direct cost, grounded in
+  the article (or null)
+- real_cost: the actual or estimated cost/downside in concrete terms (money,
+  jobs, time, safety, rights), quoted from the article if possible (or null)
+- bigger_picture: one sentence placing this news item inside a larger systemic
+  or historical frame — what this story is really about beneath the headline
+  (or null)
+- motion_theme: a JSON object to drive story-specific motion graphics:
+  {"category": "ai_product"|"code_tool"|"design_tool"|"policy"|"science"|"finance"|"geopolitical"|"social"|"generic",
+   "primary_entity": null or the main tool/product/org/person name e.g. "ChatGPT", "VS Code", "Figma", "NATO",
+   "interface_type": "chat_ui"|"code_editor"|"design_canvas"|"map"|"network_graph"|"lab"|"document"|"none",
+   "accent_color_hint": null or a hex colour based on the entity's brand e.g. "#10A37F" for OpenAI}
 - emotions: 1-3 dominant emotions the story evokes
 - tone: one of "urgent", "celebratory", "sombre", "analytical", "neutral", "inspiring"
 - visual_concepts: 2-3 distinct ideas for a hero image, described concretely
