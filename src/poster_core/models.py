@@ -135,6 +135,12 @@ class ContentBrief(BaseModel):
     why_it_matters: str | None = None
     future_impact: str | None = None
     closing_line: str | None = None
+    root_cause: str | None = None
+    who_benefits: str | None = None
+    who_is_hurt: str | None = None
+    real_cost: str | None = None
+    bigger_picture: str | None = None
+    motion_theme: MotionTheme | None = None
     emotions: list[str] = Field(default_factory=list)
     tone: str = "neutral"
     visual_concepts: list[str] = Field(default_factory=list)
@@ -179,8 +185,42 @@ class SlideKind(str, Enum):
     STATS = "stats"
     COMPARISON = "comparison"
     QUOTE = "quote"
+    WHY = "why"           # root-cause decoder: why is this happening?
+    IMPACT = "impact"     # winners-and-losers: who gains, who bears the cost
+    BIGGER_PICTURE = "bigger_picture"  # systemic/historical frame
+    SCREAM = "scream"     # single oversized stat or fact
     CONCLUSION = "conclusion"
     CTA = "cta"  # closing follow/CTA slide, always the deck's last slide
+
+
+class MotionThemeCategory(str, Enum):
+    AI_PRODUCT = "ai_product"
+    CODE_TOOL = "code_tool"
+    DESIGN_TOOL = "design_tool"
+    POLICY = "policy"
+    SCIENCE = "science"
+    FINANCE = "finance"
+    GEOPOLITICAL = "geopolitical"
+    SOCIAL = "social"
+    GENERIC = "generic"
+
+
+class InterfaceType(str, Enum):
+    CHAT_UI = "chat_ui"
+    CODE_EDITOR = "code_editor"
+    DESIGN_CANVAS = "design_canvas"
+    MAP = "map"
+    NETWORK_GRAPH = "network_graph"
+    LAB = "lab"
+    DOCUMENT = "document"
+    NONE = "none"
+
+
+class MotionTheme(BaseModel):
+    category: MotionThemeCategory = MotionThemeCategory.GENERIC
+    primary_entity: str | None = None
+    interface_type: InterfaceType = InterfaceType.NONE
+    accent_color_hint: str | None = None
 
 
 class DeckSlide(BaseModel):
